@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<!-- Required Perchance Plugins -->
+<!-- kv = {import:kv-plugin} -->
+<!-- commentsPlugin = {import:comments-plugin} -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sliding Wiki Loader</title>
+
+<style>
+* { box-sizing: border-box; font-family: Arial, sans-serif; }
+
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0f172a;
+    color: #e5e7eb;
+}
+
+.slider {
+    display: flex;
+    width: 400vw;
+    height: 100vh;
+    transition: transform 0.4s ease-in-out;
+}
+
+.slide {
+    width: 100vw;
+    height: 100vh;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+}
+
+.slide.iframe-slide {
+    padding: 0;
+    display: block;
+}
+
+.slide.iframe-slide iframe {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    background: white;
+}
+
+input {
+    padding: 10px;
+    width: 320px;
+    font-size: 16px;
+    border-radius: 4px;
+    border: none;
+}
+
+input.invalid {
+    outline: 2px solid #ef4444;
+}
+
+button {
+    padding: 10px 18px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: none;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+}
+
+button.secondary { background: #475569; }
+button.success { background: #16a34a; }
+button:disabled { background: #334155; cursor: not-allowed; }
+
+.nav {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="slider" class="slider">
+
+    <!-- SLIDE 1 -->
+    <div class="slide">
+        <h2>API Key</h2>
+        <input id="apiKey" placeholder="Paste API key">
+        <button id="genKey" class="secondary">Generate New API Key</button>
+        <div class="nav">
+            <button id="apiNext" disabled>➡</button>
+        </div>
+    </div>
+
+    <!-- SLIDE 2 -->
+    <div class="slide">
+        <h2>Username (Namespace)</h2>
+        <input id="username" placeholder="Username">
+        <button id="createUser" class="success">Create New User</button>
+        <div class="nav">
+            <button id="back1" class="secondary">⬅</button>
+            <button id="userNext" disabled>➡</button>
+        </div>
+    </div>
+
+    <!-- SLIDE 3 -->
+    <div class="slide">
+        <h2>Wiki Name (Key)</h2>
+        <input id="wikiName" placeholder="Wiki Name">
+        <button id="createWiki" class="success">Create New Wiki</button>
+        <div class="nav">
+            <button id="back2" class="secondary">⬅</button>
+            <button id="wikiNext" disabled>➡</button>
+        </div>
+    </div>
+
+    <!-- SLIDE 4 -->
+    <div class="slide iframe-slide">
+        <iframe id="wikiFrame"
+            sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+    </div>
+
+</div>
+
+<script>
+(() => {
+
+    /* ---------- STATE ---------- */
+    let currentSlide = 0;
+    let userHasEditedApiKey = false;
+
+    const API_KEY_REGEX = /^[A-Za-z0-9]{32}$/;
+
+    /* ---------- ELEMENTS ---------- */
+    const slider    = document.getElementById("slider");
+    const apiKey    = document.getElementById("apiKey");
+    const username  = document.getElementById("username");
+    const wikiName  = document.getElementById("wikiName");
+
+    const apiNext   = document.getElementById("apiNext");
+    const userNext  = document.getElementById("userNext");
+    const wikiNext  = document.getElementById("wikiNext");
+
+    const wikiFrame = document.getElementById("wikiFrame");
+
+    /* ---------- SLIDER ---------- */
+    function updateSlider() {
+        slider.style.transform = `translateX(-${currentSlide * 100}vw)`;
+    }
+
+    function nextSlide() {
+        if (currentSlide < 3) {
+            currentSlide++;
+            updateSlider();
+        }
+    }
+
+    function prevSlide() {
+        if (currentSlide > 0) {
+            currentSlide--;
+            updateSlider();
+        }
+    }
+
+    /* ---------- VALIDATION ---------- */
+    function validate() {
+        const apiOk = API_KEY_REGEX.test(apiKey.value.trim());
+        apiKey.classList.toggle("invalid", apiKey.value && !apiOk);
+        apiNext.disabled = !apiOk;
+
+        userNext.disabled = !username.value.trim();
+        wikiNext.disabled = !wikiName.value.trim();
+    }
+
+    /* ---------- ACTIONS ---------- */
+
+    document.getElementById("genKey").onclick = () => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        apiKey.value = Array.from({ length: 32 },
+            () => chars[Math.floor(Math.random() * chars.length)]
+        ).join("");
+        userHasEditedApiKey = true;
+        validate();
+    };
+
+    document.getElementById("createUser").onclick = async () => {
+        const ns = username.value.trim();
+        if (!ns) return alert("Enter a username first");
+        await kv[ns].set("__init__", { created: Date.now() });
+        alert(`User '${ns}' created`);
+    };
+
+    document.getElementById("createWiki").onclick = async () => {
+        const ns  = username.value.trim();
+        const key = wikiName.value.trim();
+        if (!ns || !key) return alert("Username and Wiki Name required");
+
+        const starter = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>${key}</title></head>
+<body>
+<h1>${key}</h1>
+<p>New wiki created.</p>
+</body>
+</html>`;
+        await kv[ns].set(key, starter);
+        alert(`Wiki '${key}' created`);
+    };
+
+    async function loadWiki() {
+        const ns  = username.value.trim();
+        const key = wikiName.value.trim();
+        const value = await kv[ns].get(key);
+
+        wikiFrame.srcdoc = value
+            ? (typeof value === "string" ? value : `<pre>${JSON.stringify(value, null, 2)}</pre>`)
+            : `<h2>Wiki Not Found</h2><pre>${ns}:${key}</pre>`;
+
+        nextSlide();
+    }
+
+    /* ---------- EVENTS ---------- */
+    apiKey.addEventListener("input", () => {
+        userHasEditedApiKey = true;
+        validate();
+    });
+
+    username.addEventListener("input", validate);
+    wikiName.addEventListener("input", validate);
+
+    apiNext.onclick = async () => {
+        if (userHasEditedApiKey) {
+            await kv.config.set("apiKey", apiKey.value.trim());
+        }
+        nextSlide();
+    };
+
+    userNext.onclick = nextSlide;
+    wikiNext.onclick = loadWiki;
+
+    document.getElementById("back1").onclick = prevSlide;
+    document.getElementById("back2").onclick = prevSlide;
+
+    /* ---------- INIT ---------- */
+    (async () => {
+        const stored = await kv.config.get("apiKey");
+        if (stored && !userHasEditedApiKey) {
+            apiKey.value = stored;
+        }
+        validate();
+        updateSlider();
+    })();
+
+})();
+</script>
+
+</body>
+</html>
