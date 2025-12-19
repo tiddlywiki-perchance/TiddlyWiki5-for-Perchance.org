@@ -98,6 +98,15 @@ Due to the iframe and Perchance environment, some browser storage features may n
 
 ---
 
+## Live Test Page
+
+- **URL:** https://perchance.org/tiddlywiki-test
+- **API:**
+- **Username:** 
+- **Wiki Name:** 
+- **!Warning! Due to the way Api's work i cant stop bad actors from overwritting the data stored here, proceed with caustion !Warning!
+---
+
 ## License
 
 This project is open-source. Contributions are welcome! Please see the [LICENSE](LICENSE) file for more details.
